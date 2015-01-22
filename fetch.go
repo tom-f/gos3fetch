@@ -2,10 +2,14 @@ package main
 
 import (
 	"fmt"
-	"github.com/mitchellh/goamz/aws"
-	"github.com/mitchellh/goamz/s3"
 	"log"
 	"os"
+	"io"
+	"strconv"
+	"net/http"
+	"github.com/mitchellh/goamz/aws"
+	"github.com/mitchellh/goamz/s3"
+	"github.com/cheggaaa/pb"
 )
 
 func main() {
@@ -43,11 +47,13 @@ func main() {
 		log.Fatal("Can't find bucket")
 	}
 
-	data, err := bucket.Get(fileName)
+    resp2, _ := bucket.GetResponse(fileName)
+    defer resp2.Body.Close()
 
-	if err != nil {
-		log.Fatal(err)
-	}
+    length := getLength(resp2)
+
+    progressBar := pb.New(length).SetUnits(pb.U_BYTES)
+    progressBar.Start()
 
 	fo, err := os.Create(fileName)
 	defer fo.Close()
@@ -56,11 +62,23 @@ func main() {
 		log.Fatal(err)
 	}
 
-	a, err := fo.Write(data)
+	writer := io.MultiWriter(fo, progressBar)
 
-	if err != nil {
-		log.Fatal(err)
-	}
+	io.Copy(writer, resp2.Body)
+	progressBar.Finish()
 
-	fmt.Printf("%s", a)
 }
+
+func getLength(resp *http.Response) int {
+	for key, value := range resp.Header {
+        if key == "Content-Length" {
+            i, err := strconv.Atoi(value[0])
+            if err == nil {
+            	return i
+            } 
+        }
+    }
+
+    return 0
+}
+
