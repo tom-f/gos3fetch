@@ -2,27 +2,24 @@ package main
 
 import (
 	"fmt"
-	"log"
-	"os"
 	"io"
-	"strconv"
+	"log"
 	"net/http"
+	"os"
+	"strconv"
+
+	"github.com/cheggaaa/pb"
 	"github.com/mitchellh/goamz/aws"
 	"github.com/mitchellh/goamz/s3"
-	"github.com/cheggaaa/pb"
 )
 
 func main() {
 
-	var args = os.Args[1:]
-	var argc = len(args)
-	if argc < 2 {
-		fmt.Printf("Incorrect number of arguments")
+	if len(os.Args[1:]) < 2 {
+		fmt.Println("Usage is: gos3fetch [bucket] [file]")
 		return
 	}
-
-	var bucketName = args[0]
-	var fileName = args[1]
+	bucketName, fileName := os.Args[1], os.Args[2]
 
 	auth, err := aws.SharedAuth()
 	if err != nil {
@@ -47,17 +44,17 @@ func main() {
 		log.Fatal("Can't find bucket")
 	}
 
-    resp2, _ := bucket.GetResponse(fileName)
-    defer resp2.Body.Close()
+	resp2, _ := bucket.GetResponse(fileName)
+	defer resp2.Body.Close()
 
-    length := getLength(resp2)
+	length := getLength(resp2)
 
-    progressBar := pb.New(length).SetUnits(pb.U_BYTES)
-    progressBar.Start()
+	progressBar := pb.New(length).SetUnits(pb.U_BYTES)
+	progressBar.Start()
 
 	fo, err := os.Create(fileName)
 	defer fo.Close()
-  
+
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -70,15 +67,9 @@ func main() {
 }
 
 func getLength(resp *http.Response) int {
-	for key, value := range resp.Header {
-        if key == "Content-Length" {
-            i, err := strconv.Atoi(value[0])
-            if err == nil {
-            	return i
-            } 
-        }
-    }
-
-    return 0
+	i, err := strconv.Atoi(resp.Header.Get("Content-Length"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	return i
 }
-
